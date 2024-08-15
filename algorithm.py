@@ -2,6 +2,7 @@ import math
 from PIL import Image, ImageDraw
 import base64
 from io import BytesIO
+import os
 
 def save(filename, data):
     with open(filename, 'w') as file:
@@ -129,7 +130,7 @@ def embed_image_in_svg(image_path):
     img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return f'<image href="data:image/png;base64,{img_str}" width="{width}" height="{height}" />'
 
-def generate_from_image(seed_value, tabsize, jitter, xn_val, yn_val, image_path, line_color_width = "black" , line_color_height="black" , outline_color = "black", line_width=0.1, filename="jigsaw.svg"):
+def generate_from_image(args,seed_value, tabsize, jitter, xn_val, yn_val, image_path, line_color_width = "black" , line_color_height="black" , outline_color = "black", line_width=0.1, filename="jigsaw.svg"):
     global seed, t, j, xn, yn, width, height, radius, offset
     seed = seed_value
     t = tabsize / 200.0
@@ -140,23 +141,66 @@ def generate_from_image(seed_value, tabsize, jitter, xn_val, yn_val, image_path,
     offset = 0.0
 
     # Load the image and get its dimensions
-    image = Image.open(image_path)
-    width, height = image.size  # Use the image dimensions for the puzzle size
+    BG_image = Image.open(image_path)
+    width, height = BG_image.size  # Use the image dimensions for the puzzle size
 
     print(f"Image width and height = {width} mm × {height}mm\n")
 
+    horizontal_path = gen_dh()
+    vertical_path = gen_dv()
+    border_path = gen_db()
+
+    # Save the outline-only PNG
+    outline_svg_content = f"<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.0\" width=\"{width}mm\" height=\"{height}mm\" viewBox=\"0 0 {width} {height}\">"
+    outline_svg_content += f"<path fill=\"none\" stroke=\"{line_color_width}\" stroke-width=\"{line_width}\" d=\"{horizontal_path}\"></path>"
+    outline_svg_content += f"<path fill=\"none\" stroke=\"{line_color_height}\" stroke-width=\"{line_width}\" d=\"{vertical_path}\"></path>"
+    outline_svg_content += f"<path fill=\"none\" stroke=\"{outline_color}\" stroke-width=\"{line_width}\" d=\"{border_path}\"></path>"
+    outline_svg_content += "</svg>"
+
+    save(f"{os.path.splitext(os.path.basename(filename))[0]}_outline.svg", outline_svg_content)
+
+    print(f"Outline SVG file saved as {os.path.splitext(os.path.basename(filename))[0]}_outline.svg")
+
     # Embed the image in the SVG
     embedded_image = embed_image_in_svg(image_path)
-
     svg_content = "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.0\" "
     svg_content += f"width=\"{width}mm\" height=\"{height}mm\" viewBox=\"0 0 {width} {height}\">"
     svg_content += embedded_image  # Add the embedded image as the bottom layer
-    svg_content += f"<path fill=\"none\" stroke=\"{line_color_width}\" stroke-width=\"{line_width}\" d=\"{gen_dh()}\"></path>"
-    svg_content += f"<path fill=\"none\" stroke=\"{line_color_height}\" stroke-width=\"{line_width}\" d=\"{gen_dv()}\"></path>"
-    svg_content += f"<path fill=\"none\" stroke=\"{outline_color}\" stroke-width=\"{line_width}\" d=\"{gen_db()}\"></path>"
+    svg_content += f"<path fill=\"none\" stroke=\"{line_color_width}\" stroke-width=\"{line_width}\" d=\"{horizontal_path}\"></path>"
+    svg_content += f"<path fill=\"none\" stroke=\"{line_color_height}\" stroke-width=\"{line_width}\" d=\"{vertical_path}\"></path>"
+    svg_content += f"<path fill=\"none\" stroke=\"{outline_color}\" stroke-width=\"{line_width}\" d=\"{border_path}\"></path>"
     svg_content += "</svg>"
 
     save(filename, svg_content)
+
+    print(f"SVG file saved as {filename}")
+
+    if args.save_png:
+
+        from wand.image import Image as WandImage
+        from PIL import Image as PILImage ,ImageChops
+        from io import BytesIO
+
+        with WandImage(blob=outline_svg_content.encode('utf-8'), format='svg') as img:
+            img.alpha_channel = 'activate'
+            png_image = BytesIO()
+            img.format = 'png'
+            img.save(file=png_image)
+            png_image.seek(0)
+            
+            # Save the outline-only PNG
+            with open(f"{os.path.splitext(os.path.basename(filename))[0]}_outline.png", 'wb') as file:
+                file.write(png_image.read())
+
+        overlay_image = Image.open(png_image)
+        combined_image = ImageChops.multiply(BG_image.convert('RGBA'), overlay_image.resize(BG_image.size).convert('RGBA'))
+
+        combined_image.save(f"{os.path.splitext(os.path.basename(filename))[0]}_combined.png")
+
+
+
+
+
 
 
 

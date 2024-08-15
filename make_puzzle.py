@@ -21,6 +21,7 @@ def get_args():
     parser.add_argument('--outline_color', type=str, default='black', help='Customize the line color')
     parser.add_argument('--line_width', type=float, default=0.7, help='Customize the line width')
     parser.add_argument('--filename', type=str, default='puzzle.svg', help='Output file name')
+    parser.add_argument('--save_png', type=bool, default=True, help='Save as PNG')
     args = parser.parse_args()
 
     return args
@@ -33,6 +34,7 @@ if __name__ == "__main__":
 
     
     generate_from_image(
+        args = args,
         seed_value=args.seed,
         tabsize=args.tabsize,  # The size of buzzle tab <40
         jitter=args.jitter,
